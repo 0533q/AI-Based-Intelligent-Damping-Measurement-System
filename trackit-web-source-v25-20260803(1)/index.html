@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>振动分析系统 · Vibration Analysis</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230d1526'/><path d='M4 18h4l3-9 4 14 4-18 4 18 3-9h2' stroke='%2322d3ee' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+    <link rel="stylesheet" href="assets/css/style.css?v=21">
+    <script src="assets/lib/math.min.js?v=21"></script>
+    <script src="assets/lib/chart.umd.min.js?v=21"></script>
+    <script src="assets/lib/ort.min.js?v=21"></script>
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+
+    <div class="container">
+        <!-- 顶栏 -->
+        <header class="header">
+            <div class="brand">
+                <div class="logo" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22">
+                        <path d="M2 12h2l2-6 3 12 3-16 3 16 3-12 2 6h2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>振动分析系统</h1>
+                    <p>VIBRATION ANALYSIS · YOLOv8-TINY</p>
+                </div>
+            </div>
+            <span class="status-badge status-idle" id="statusBadge">待机</span>
+        </header>
+
+        <div class="error-toast" id="errorToast" role="alert"></div>
+
+        <!-- 视频输入 -->
+        <section class="panel" id="videoPanel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><rect x="2" y="5" width="15" height="14" rx="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M17 10l5-3v10l-5-3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+                    <span>视频输入</span><em>VIDEO INPUT</em>
+                </div>
+                <div class="panel-tag" id="videoInfo">等待上传...</div>
+            </div>
+            <div class="stage">
+                <div class="scanline" aria-hidden="true"></div>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="videoInput" accept="video/mp4" hidden>
+                    <div class="upload-inner">
+                        <svg class="upload-icon" viewBox="0 0 24 24" width="44" height="44">
+                            <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+                        </svg>
+                        <div class="upload-text">点击或拖拽上传 MP4 视频</div>
+                        <div class="upload-hint">时长 ≤ 60s · 画面含红色指针与绿色 5cm 标尺</div>
+                    </div>
+                </div>
+                <video id="videoPreview" controls playsinline class="video-preview"></video>
+                <canvas id="detectionCanvas" class="detection-canvas"></canvas>
+            </div>
+        </section>
+
+        <!-- 控制台 -->
+        <section class="panel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 7h10m3 0h3M4 17h3m3 0h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17" cy="7" r="2.4" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="10" cy="17" r="2.4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+                    <span>控制台</span><em>CONTROL</em>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="btn-row">
+                    <select id="modeSelect" class="mode-select" title="识别模式">
+                        <option value="fast">快速 · 并行推理</option>
+                        <option value="precise">精确 · 逐帧分析</option>
+                    </select>
+                    <button id="btnStart" class="btn btn-primary" disabled>
+                        <svg viewBox="0 0 24 24" width="15" height="15"><path d="M8 5l11 7-11 7z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+                        开始识别分析
+                    </button>
+                    <button id="btnReset" class="btn btn-ghost">
+                        <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 4v6h6M20 20v-6h-6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9a8 8 0 0 0-14.2-2.6L4 10M4 15a8 8 0 0 0 14.2 2.6L20 14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+                        重置
+                    </button>
+                    <button id="btnExport" class="btn btn-outline" disabled>
+                        <svg viewBox="0 0 24 24" width="15" height="15"><path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+                        导出报告
+                    </button>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+                    <div class="progress-text" id="progressText">等待开始...</div>
+                </div>
+
+                <div class="step-indicator">
+                    <span class="step" data-step="1">上传</span><i class="step-link"></i>
+                    <span class="step" data-step="2">识别</span><i class="step-link"></i>
+                    <span class="step" data-step="3">标定</span><i class="step-link"></i>
+                    <span class="step" data-step="4">采集</span><i class="step-link"></i>
+                    <span class="step" data-step="5">训练</span><i class="step-link"></i>
+                    <span class="step" data-step="6">计算</span><i class="step-link"></i>
+                    <span class="step" data-step="7">绘图</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据参数 -->
+        <section class="panel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 13l4-4M12 5v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    <span>数据参数</span><em>PARAMETERS</em>
+                </div>
+                <div class="panel-tag">单位: cm · s</div>
+            </div>
+            <div class="panel-body">
+                <div class="data-grid">
+                    <div class="data-card">
+                        <div class="data-label">采样帧数</div>
+                        <div class="data-value" id="frameCount">0</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">视频帧率</div>
+                        <div class="data-value" id="fpsValue">0</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">平衡位置</div>
+                        <div class="data-value" id="equilibriumPos">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">阻尼比</div>
+                        <div class="data-value" id="dampingRatio">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">阻尼系数</div>
+                        <div class="data-value" id="dampingCoeff">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">周期</div>
+                        <div class="data-value" id="periodValue">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">停止时间</div>
+                        <div class="data-value" id="stopTime">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">对数衰减率</div>
+                        <div class="data-value" id="logDecay">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-label">拟合 R²</div>
+                        <div class="data-value" id="rSquared">-</div>
+                    </div>
+                </div>
+
+                <div class="query-row">
+                    <label class="query-label">时间查询</label>
+                    <input type="number" id="queryTime" min="0" step="0.1" placeholder="输入时间 (s)" disabled>
+                    <button id="btnQuery" class="btn btn-sm btn-outline" disabled>查询</button>
+                    <span class="query-result" id="queryResult">-</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 振动曲线 -->
+        <section class="panel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><path d="M3 16l5-6 4 4 5-8 4 5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>振动曲线</span><em>VIBRATION</em>
+                </div>
+                <div class="chart-toolbar">
+                    <button id="btnViewFirst" class="chart-btn" disabled>聚焦</button>
+                    <button id="btnViewAll" class="chart-btn" disabled>全览</button>
+                </div>
+            </div>
+            <div class="chart-box"><canvas id="vibrationChart"></canvas></div>
+        </section>
+
+        <!-- Loss 曲线 -->
+        <section class="panel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><path d="M3 8l5 6 4-4 5 8 4-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Loss 曲线</span><em>TRAINING</em>
+                </div>
+            </div>
+            <div class="chart-box"><canvas id="lossChart"></canvas></div>
+        </section>
+
+        <!-- 日志 -->
+        <section class="panel">
+            <div class="panel-head">
+                <div class="panel-title">
+                    <svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M8 9l2.5 2L8 13M13 15h4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>操作日志</span><em>LOG</em>
+                </div>
+            </div>
+            <div class="log-container" id="logContainer"></div>
+        </section>
+
+        <footer class="footer">Vibration Analysis System · 纯前端 · 数据全程本地处理 · YOLOv8-Tiny / ONNX Runtime Web</footer>
+    </div>
+
+    <!-- 脚本引入（v=7 用于浏览器强刷缓存，更新代码后需递增） -->
+    <script src="assets/js/core/yolo-common.js?v=21"></script>
+    <script src="assets/js/core/video-processor.js?v=21"></script>
+    <script src="assets/js/core/yolo-detector.js?v=21"></script>
+    <script src="assets/js/core/coordinate-calib.js?v=24"></script>
+    <script src="assets/js/core/data-processor.js?v=24"></script>
+    <script src="assets/js/core/nn-fitter.js?v=25"></script>
+    <script src="assets/js/core/vibration-calc.js?v=24"></script>
+    <script src="assets/js/core/inference-pool.js?v=21"></script>
+    <script src="assets/js/core/chart-render.js?v=24"></script>
+    <script src="assets/js/app.js?v=25"></script>
+</body>
+</html>
